@@ -1,9 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod 
 
-# internal
-from internal.theme import ThemeContext
-
 
 class DialogContext(ABC):
     _currentTheme = None

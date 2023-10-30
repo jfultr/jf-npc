@@ -9,27 +9,27 @@ from internal.contextabc import DialogContext
 def load_api_key():
     from dotenv import load_dotenv
     load_dotenv()
+    return os.getenv("OPENAI_API_KEY")
 
 
 if __name__ == "__main__":
-    engineer = Character(
-        name="syscntr-8",
-        role="системный инженер",
-        background=f"Работает в компании TSEN"
-    )
+    # engineer = Character(
+    #     name="syscntr-8",
+    #     role="системный инженер",
+    #     background=f"Работает в компании TSEN"
+    # )
 
-    engineer_dialog = DialogContext(
-        readytospeak=f"то в какой компании работает и на какой должности",
-        confidential=f"о том что в свою крайнюю смену зарегестрировал ошибку на серевере 31",
-        secret=f"Он уверен, что его скоро уволят. На карйней смене он забыл закрыть порт 5151",
-        motivation="Скрыть от всех ошибку"
-    )
+    # engineer_dialog = DialogContext(
+    #     readytospeak=f"то в какой компании работает и на какой должности",
+    #     confidential=f"о том что в свою крайнюю смену зарегестрировал ошибку на серевере 31",
+    #     secret=f"Он уверен, что его скоро уволят. На карйней смене он забыл закрыть порт 5151",
+    #     motivation="Скрыть от всех ошибку"
+    # )
 
     
-    exit()
+    # exit()
     # load openai key
-    load_api_key()
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    openai.api_key = load_api_key()
 
     completion = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
