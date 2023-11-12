@@ -15,4 +15,4 @@ if __name__ == "__main__":
         content=content['dialogContext']
     )
 
-    engineer_dialog.handle_message('Привет, Я HR Из компании Google. Я пишу Вам чтобы предложить работу. Давайте обсудим вашу работу')
+    engineer_dialog.handle_message('Привет, ты закончил вчера смену?')
