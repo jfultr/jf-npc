@@ -4,23 +4,12 @@ import asyncio
 # gpt powered
 from openai import AsyncOpenAI
 
-
-def load_api_key(name):
-    from dotenv import load_dotenv
-    load_dotenv()
-    return os.getenv(name)
+from internal.common import read_api_key
 
 
-openai_token = load_api_key("OPENAI_API_KEY")
+openai_token = read_api_key("OPENAI_API_KEY")
 _messages = []
 
-
-# get_age
-# get_city_from
-# get_city_to
-# get_people_count
-# cancel
-# error
 
 _starting_context = "Ты онлайн турестический агент.\n" \
                     "Тебе необходимо узнать у клиента: возраст, пункт отправления, пункт прибытия, количество людей.\n" \
