@@ -1,9 +1,13 @@
-import os
 import asyncio
 
 # gpt powered
 from openai import AsyncOpenAI
 
+# orm
+from sqlalchemy import create_engine
+from internal.orminterface import Base
+
+# utils
 from internal.common import read_api_key
 
 
@@ -36,6 +40,9 @@ class TravelAgent:
             # This is the default and can be omitted
             api_key=openai_token
         )
+        self.ormengine = create_engine("sqlite://", echo=True)
+        # Base.metadata.create_all(self.ormengine)
+
         self.greeting = _greeting_text
 
     async def handle_user_message(self, message) -> str:
