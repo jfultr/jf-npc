@@ -1,23 +1,13 @@
 from typing import List
 from datetime import datetime
 from sqlalchemy import ForeignKey
-from sqlalchemy import String, Integer, ARRAY
+from sqlalchemy import String, Integer, DateTime
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
-# from sqlalchemy import Column, Integer, ARRAY, String
-# from sqlalchemy.ext.declarative import declarative_base
-
-# Base = declarative_base()
-
-# class Chat(Base):
-#     __tablename__ = 'chats'
-
-#     id = Column(Integer, primary_key=True)
-#     chat_id = Column(Integer)
-#     chat = Column(ARRAY(String))
 
 class Base(DeclarativeBase):
     pass
@@ -42,8 +32,9 @@ class Message(Base):
     __tablename__ = "message"
     id: Mapped[int] = mapped_column(primary_key=True)
     chat: Mapped["Chat"] = relationship(back_populates='message')
-    # timestamp: 
-
+    created_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class User(Base):

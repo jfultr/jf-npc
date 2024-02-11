@@ -3,17 +3,11 @@ import asyncio
 # gpt powered
 from openai import AsyncOpenAI
 
-# orm
-from sqlalchemy import create_engine
-from internal.orminterface import Base
-
 # utils
 from internal.common import read_api_key
-
+from internal.messagelist import MessageList
 
 openai_token = read_api_key("OPENAI_API_KEY")
-_messages = []
-
 
 _starting_context = "Ты онлайн турестический агент.\n" \
                     "Тебе необходимо узнать у клиента: возраст, пункт отправления, пункт прибытия, количество людей.\n" \
@@ -22,32 +16,45 @@ _starting_context = "Ты онлайн турестический агент.\n"
 _greeting_text = "Привет! Я помогу вам организовать ваше путешествие.\n" \
         "Давайте начнем с вашего возраста. Сколько вам лет?"
 
-_messages = [
-    {
-        "role": "system",
-        "content": _starting_context
-    },
-    {
-        "role": "assistant",
-        "content": _greeting_text
-    }
-]
-
 
 class TravelAgent:
-    def __init__(self) -> None:
+    def __init__(self, id) -> None:
+        self._id = id
+
+        # openai client
         self.client = AsyncOpenAI(
             # This is the default and can be omitted
             api_key=openai_token
         )
-        self.ormengine = create_engine("sqlite://", echo=True)
-        # Base.metadata.create_all(self.ormengine)
 
+        # bind the greeting text
         self.greeting = _greeting_text
 
+        # storing data structure implemintation
+        self.messages = MessageList(id)
+
+        if(len(self.messages) == 0):
+            self.messages.extend(
+                [
+                    {
+                        "role": "system",
+                        "content": _starting_context
+                    }, 
+                    {
+                        "role": "assistant",
+                        "content": _greeting_text
+                    }
+                ]
+            )
+
+
+    @property
+    def id(self):
+        return self._id
+    
     async def handle_user_message(self, message) -> str:
         # add message to chat context
-        _messages.append(
+        self.messages.append(
             {
                 "role": "user",
                 "content": message
@@ -56,7 +63,7 @@ class TravelAgent:
 
         # wait the answer
         comp = await self.client.chat.completions.create(
-            messages=_messages,
+            messages=self.messages,
             model="gpt-3.5-turbo",
         )
 
@@ -70,7 +77,7 @@ class TravelAgent:
                     {
                         "role": "user",
                         "content": \
-                            f"вопрос: {_messages[-2]['content']}"
+                            f"вопрос: {self.messages[-2]['content']}"
                             f"ответ: {message}\n" \
                             "Прочитай эти сообщения и заполни эти поля. Оставляй поля пустыми, если данные не указаны\n" \
                             "Возраст: <int>\n" \
@@ -82,7 +89,7 @@ class TravelAgent:
                 model="gpt-3.5-turbo",
             )
 
-            _messages.append(
+            self.messages.append(
                 {
                     "role": "assistant",
                     "content": gpt_response
@@ -91,6 +98,6 @@ class TravelAgent:
             print(comp.choices[0].message.content)
 
         asyncio.create_task(data_extraction())
-        print(_messages)
+        print(self.messages)
         return gpt_response
 

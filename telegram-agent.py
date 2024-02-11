@@ -9,8 +9,11 @@ from package.travel_agent import TravelAgent
 from internal.common import read_api_key
 
 
-travel_agent = TravelAgent()
+agents = {}
+travel_agent = TravelAgent(1)
 
+def is_agent_in_memmory(agent):
+    pass
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, 
@@ -22,7 +25,8 @@ async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
 
-def app():
+def app():  
+    # bot 
     telegram_token = read_api_key("TELEGRAM_BOT_API_KEY")
     application = ApplicationBuilder().token(telegram_token).build()
 
