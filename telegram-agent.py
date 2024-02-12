@@ -5,8 +5,8 @@ from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHan
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-from package.travel_agent import TravelAgent
-from internal.common import read_api_key
+from internal.travel_agent import TravelAgent
+from package.common import read_api_key
 
 
 agents = {}

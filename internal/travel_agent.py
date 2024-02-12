@@ -4,8 +4,8 @@ import asyncio
 from openai import AsyncOpenAI
 
 # utils
-from internal.common import read_api_key
-from internal.messagelist import MessageList
+from package.common import read_api_key
+from package.messagelist import MessageList
 
 openai_token = read_api_key("OPENAI_API_KEY")
 
