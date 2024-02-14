@@ -5,7 +5,10 @@ from openai import AsyncOpenAI
 
 # utils
 from package.common import read_api_key
-from package.messagelist import MessageList
+
+# design files
+from internal.messagelist import MessageList
+
 
 openai_token = read_api_key("OPENAI_API_KEY")
 
@@ -16,8 +19,11 @@ _starting_context = "Ты онлайн турестический агент.\n"
 _greeting_text = "Привет! Я помогу вам организовать ваше путешествие.\n" \
         "Давайте начнем с вашего возраста. Сколько вам лет?"
 
+greeting: str = _greeting_text
 
 class TravelAgent:
+    # bind the greeting text
+    
     def __init__(self, id) -> None:
         self._id = id
 
@@ -27,8 +33,7 @@ class TravelAgent:
             api_key=openai_token
         )
 
-        # bind the greeting text
-        self.greeting = _greeting_text
+
 
         # storing data structure implemintation
         self.messages = MessageList(id)
