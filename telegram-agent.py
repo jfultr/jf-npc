@@ -5,46 +5,27 @@ from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHan
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-from internal.travel_agent import TravelAgent, greeting
+from internal.travel_agent import get_travel_agent
 from package.common import read_api_key
+from package.database import is_user_stored
 
-
-agents = {}
-
-"""
-"chats": {
-    "chat_id": int
-    "profile": {}
-    "messages": [
-        {
-            role: str
-            content: str
-        },
-        ...
-    ]
-},
-...
-    
-"""
-def is_agent_in_memmory(agent):
-    pass
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.id in agents:
-        return
-    else:
-        agents.update({update.effective_chat.id: TravelAgent(update.effective_chat.id)})
+    if not is_user_stored(str(update.effective_chat.id)):
+        greeting = get_travel_agent(update.effective_chat.id).handle_user_greeting()
         await context.bot.send_message(chat_id=update.effective_chat.id, 
             text=greeting)
-    
+    else:
+        return
+
 
 async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.effective_chat.id in agents:
-        return
+    if is_user_stored(str(update.effective_chat.id)):
+        travel_agent = get_travel_agent(update.effective_chat.id)
+        response = await travel_agent.handle_user_message(update.message.text)
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
     else:
-        travel_agent = agents[update.effective_chat.id]
-    response = await travel_agent.handle_user_message(update.message.text)
-    await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+        return
 
 
 def app():  

@@ -1,17 +1,7 @@
 import pymongo
 import bson
 
-class DatabaseManager:
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._client = pymongo.MongoClient("mongodb://localhost:27017/")
-        return cls._instance
-
-    def client(self):
-        return self._client
+from package.database import DatabaseManager
 
 
 class MessageList(list):
@@ -22,18 +12,23 @@ class MessageList(list):
         self._messages = _client['jfnpc-db']['messages']
         stored_messages = self._messages.find({"chat_id": self._id})
         for message in stored_messages:
-            print(message)
-            super().append(message)
+            self._adapted_append(message)
 
+    def _adapted_append(self, message):
+        super().append(
+            {
+                "role": message["role"],
+                "content": message["content"]
+            }
+        )
+     
     # override
     def append(self, item: dict):
-        super().append(item)
+        self._adapted_append(item)
         item.update({"chat_id": self._id})
         self._messages.insert_one(item)
 
     # override
     def extend(self, items):
-        super().extend(items)
-
         for item in items:
             self.append(item)
