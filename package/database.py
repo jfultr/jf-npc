@@ -22,7 +22,7 @@ class DatabaseManager:
             cls._instance._client = pymongo.MongoClient("mongodb://localhost:27017/")
         return cls._instance
 
-    def client(self):
+    def client(self) -> pymongo.MongoClient:
         return self._client
     
     
