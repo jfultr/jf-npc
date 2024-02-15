@@ -5,10 +5,10 @@ jf-npc is a project to create non-player characters with complex speech behavior
 ## Installation
 >Note: build tested on wsl Ubuntu 22.04
 
-Install dependencies. Make sure you have gcc with std11+
+Install dependencies. Install setup tools before run poetry init
 ```bash
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install build-essential python3-dev  gcc -y
+sudo apt-get install build-essential python3-dev gcc -y
 ```
 Use the package manager [poetry](https://python-poetry.org/) to install jf-npc.
 
