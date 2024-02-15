@@ -1,6 +1,4 @@
-import pymongo
-import bson
-
+from datetime import datetime
 from package.database import DatabaseManager
 
 
@@ -26,6 +24,7 @@ class MessageList(list):
     def append(self, item: dict):
         self._adapted_append(item)
         item.update({"chat_id": self._id})
+        item.update({"timestamp": datetime.now()})
         self._messages.insert_one(item)
 
     # override
