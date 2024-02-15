@@ -5,6 +5,7 @@ import bson
 "messages": 
 {
     "chat_id": int
+    "timestamp": timestamp
     "role": {}
     "content": []
 },
