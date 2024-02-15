@@ -5,7 +5,7 @@ from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHan
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-from internal.travel_agent import get_travel_agent
+from npc.travel_agent import get_travel_agent
 from package.common import read_api_key
 from package.database import is_chat_stored
 

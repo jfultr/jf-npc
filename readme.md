@@ -1,4 +1,4 @@
-# JF-npc
+## JF-npc
 
 jf-npc is a project to create non-player characters with complex speech behavior based on LLM.
 
@@ -15,7 +15,13 @@ Use the package manager [poetry](https://python-poetry.org/) to install jf-npc.
 ```bash
 poetry init
 ```
+## Usage
 
+Before you can run the apps you shoud setup tokens. Just paste tokens to ***.env.example*** and rename it to ***.env***
+
+This way, the apps can parse your tokens
+### Apps:
+* **telegram-agent**: app implements npc as a telegram chat-bot
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first
