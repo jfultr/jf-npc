@@ -12,7 +12,9 @@ from package.database import is_chat_stored
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_chat_stored(str(update.effective_chat.id)):
-        greeting = get_travel_agent(update.effective_chat.id).handle_user_greeting()
+        greeting = get_travel_agent(
+            update.effective_chat.id,
+            update.effective_user.id).handle_user_greeting()
         await context.bot.send_message(chat_id=update.effective_chat.id, 
             text=greeting)
     else:
@@ -21,7 +23,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_chat_stored(str(update.effective_chat.id)):
-        travel_agent = get_travel_agent(update.effective_chat.id)
+        travel_agent = get_travel_agent(
+            update.effective_chat.id,
+            update.effective_user.id)
         response = await travel_agent.handle_user_message(update.message.text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
     else:

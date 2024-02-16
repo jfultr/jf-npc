@@ -14,18 +14,14 @@ from package.common import read_api_key
 
 # design files
 from internal.messagelist import MessageList
+from internal.profile import Profile
 
 
 openai_token = read_api_key("OPENAI_API_KEY")
 
-_starting_context = "Ты онлайн турестический агент.\n" \
-                    "Тебе необходимо узнать у клиента: возраст, пункт отправления, пункт прибытия, количество людей.\n" \
-                    "Задавай вопросы пока не узнаешь ответы на все вопросы. По мере заполняй профайл клиента\n"
-
 _greeting_text = "Привет! Я помогу вам организовать ваше путешествие.\n" \
                  "Давайте начнем с вашего возраста. Сколько вам лет?"
 
-_json_template = { "Возраст": None, "Пункт отправления": None, "Пункт прибытия": None, "Количество людей" : None }
 
 # bind the greeting text
 greeting: str = _greeting_text
@@ -34,39 +30,54 @@ greeting: str = _greeting_text
 agents = {}
 
 
-def get_travel_agent(_id: int) -> TravelAgent:
-    if _id in agents:
-        return agents[_id]
+def get_travel_agent(chat_id: int, user_id: int) -> TravelAgent:
+    if chat_id in agents:
+        return agents[chat_id]
     else:
-        agent = TravelAgent(MessageList(str(_id)))
-        agents.update({_id: agent})
+        agent = TravelAgent(
+            MessageList(str(chat_id)),
+            Profile(str(user_id))
+        )
+        agents.update({chat_id: agent})
         return agent
 
 
 class TravelAgent:    
-    def __init__(self, messages: MessageList) -> None:
+    def __init__(self, messages: MessageList, profile: Profile) -> None:
         # storing data structure implemintation
         self.messages = messages
+        self.profile = profile
 
         # openai client
         self.model = ChatOpenAI(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             api_key=openai_token
+        )
+
+        self.extr_model = ChatOpenAI(
+            model="gpt-3.5-turbo",
+            api_key=openai_token,
+            temperature=0.1
         )
         
         # chat tamplate
-        self.system_context = SystemMessagePromptTemplate.from_template("{system_context}")
+        self.system_context = SystemMessagePromptTemplate.from_template(
+            "Ты онлайн турестический агент.\n" \
+            "Тебе необходимо узнать у клиента: {propertis}.\n" \
+            "Задавай вопросы пока не узнаешь ответы на все вопросы\n"
+        )
 
         # extraction tamplate
         self.extraction_template = ChatPromptTemplate.from_messages(
             [
                 SystemMessage(content=("Ты анализатор текста. Ты аналезируешь диалог AI и пользователя. "
-                                       "Тебе нужно заполнить json соответсвующей информацией из вопроса и ответа")),
+                                       "Тебе нужно заполнить json соответсвующей информацией ответа Клиента")),
                 HumanMessagePromptTemplate.from_template("AI задал вопрос: {question}"),
                 HumanMessagePromptTemplate.from_template("Клиент дал ответ: {answer}"),
-                HumanMessagePromptTemplate.from_template("Заполни данный json: {json_tamplate}"),
+                HumanMessagePromptTemplate.from_template("Заполни данный json в формате utf-8: {json_tamplate}"),
             ]
         )
+        
         # answer parser
         self.parser = StrOutputParser()
     
@@ -89,7 +100,7 @@ class TravelAgent:
         answer_chain = chat_context | self.model | self.parser
 
         # wait the answer
-        answer = await answer_chain.ainvoke({"system_context": _starting_context})
+        answer = await answer_chain.ainvoke({"propertis": self.profile.get_properties()})
 
         # store the answer
         self.messages.append(AIMessage(content=answer))
@@ -99,15 +110,16 @@ class TravelAgent:
         return answer
 
     async def _data_extraction(self, question, answer):
-        extrraction_chain = self.extraction_template | self.model | self.parser
+        extrraction_chain = self.extraction_template | self.extr_model | self.parser
 
         extracted = await extrraction_chain.ainvoke(
             {
                 "question": question,
                 "answer": answer,
-                "json_tamplate": json.dumps(_json_template)
+                "json_tamplate": json.dumps(self.profile.data)
             }
         )
+        self.profile.update(json.loads(extracted))
         print(extracted)
 
 
