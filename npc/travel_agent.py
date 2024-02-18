@@ -1,13 +1,25 @@
 from __future__ import annotations
 import asyncio
 import json
-
+from operator import itemgetter
 # langchain powered
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate
+
+# langchain rag segment
+from langchain_core.runnables import RunnableParallel, RunnableBranch, RunnablePassthrough
+from langchain_community.vectorstores import Chroma
+from langchain import hub
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.runnables import RunnablePassthrough
+from langchain.globals import set_verbose
+from langchain.globals import set_debug
+
+set_debug(True)
+set_verbose(True)
 
 # utils
 from package.common import read_api_key
@@ -15,12 +27,68 @@ from package.common import read_api_key
 # design files
 from internal.messagelist import MessageList
 from internal.profile import Profile
-
+from internal.documentation import QAfile
 
 openai_token = read_api_key("OPENAI_API_KEY")
 
-_greeting_text = "Привет! Я помогу вам организовать ваше путешествие.\n" \
-                 "Давайте начнем с вашего возраста. Сколько вам лет?"
+_greeting_text = """
+<данный телегремм-бот в демо режиме. Могут появляться ошибки>
+
+Привет! Я помогу вам организовать ваше путешествие.
+Давайте начнем с вашего возраста. Сколько вам лет?
+""" 
+
+
+_profiling_template_text = """
+Ты онлайн турестический агент.
+Тебе необходимо узнать у клиента: {propertis}.
+Задавай вопросы пока не узнаешь ответы на все вопросы
+""" # ...... 
+    # + last N messages in chat
+
+
+_question_classifictor_text = """
+Учитывая сообщение пользователя ниже, классифицируй имеется ли в сообщении вопрос.
+Не отвечайте более чем одним словом.
+Отвечай только `yes`, `no`
+
+<message>
+{message}
+</message>
+
+Classification:"""
+
+
+_qa_answer_text = """
+Ты помощник в вопросах-ответах. Сначала используй следующие фрагменты полученного контекста, чтобы ответить на вопрос.
+Если не знаешь ответ, просто скажи, что не знаешь. Используй максимум три предложения и будь краткими.
+
+Вопрос: {question}
+
+Контекст: {context}
+
+Ответ:"""
+
+
+_qa_extension_text = """
+Тебе необходимо совместить Q&A ответ и сообщение от ИИ бота, таким образом чтобы это выглядило локонично
+
+Q&A ответ: {qa_answer}
+сообщение от ИИ бота: {negotiator_answer}
+локоничный ответ:"""
+
+
+_extraction_template_chat = [
+    SystemMessage(content=(
+        "Ты анализатор текста. Ты аналезируешь диалог AI и пользователя. "
+        "Тебе нужно заполнить json соответсвующей информацией ответа Клиента")),
+    HumanMessagePromptTemplate.from_template(
+        "AI задал вопрос: {question}"),
+    HumanMessagePromptTemplate.from_template(
+        "Клиент дал ответ: {answer}"),
+    HumanMessagePromptTemplate.from_template(
+        "Заполни данный json в формате utf-8: {json_template}"),
+]
 
 
 # bind the greeting text
@@ -48,38 +116,45 @@ class TravelAgent:
         self.messages = messages
         self.profile = profile
 
-        # openai client
-        self.model = ChatOpenAI(
+        # llm to negotiate with client
+        self.negotiator = ChatOpenAI(
             model="gpt-3.5-turbo",
             api_key=openai_token
         )
 
-        self.extr_model = ChatOpenAI(
+        # llm to classify is there a question in message
+        self.qc_llm = ChatOpenAI(
+            model="gpt-3.5-turbo",
+            api_key=openai_token,
+            temperature=0
+        )
+
+        # llm to classify is there a question in message
+        self.qa_llm = ChatOpenAI(
+            model="gpt-3.5-turbo",
+            api_key=openai_token
+        )
+
+        # llm to extract usefull information for profile 
+        self.extractor = ChatOpenAI(
             model="gpt-3.5-turbo",
             api_key=openai_token,
             temperature=0.1
         )
         
-        # chat tamplate
-        self.system_context = SystemMessagePromptTemplate.from_template(
-            "Ты онлайн турестический агент.\n" \
-            "Тебе необходимо узнать у клиента: {propertis}.\n" \
-            "Задавай вопросы пока не узнаешь ответы на все вопросы\n"
-        )
-
-        # extraction tamplate
-        self.extraction_template = ChatPromptTemplate.from_messages(
-            [
-                SystemMessage(content=("Ты анализатор текста. Ты аналезируешь диалог AI и пользователя. "
-                                       "Тебе нужно заполнить json соответсвующей информацией ответа Клиента")),
-                HumanMessagePromptTemplate.from_template("AI задал вопрос: {question}"),
-                HumanMessagePromptTemplate.from_template("Клиент дал ответ: {answer}"),
-                HumanMessagePromptTemplate.from_template("Заполни данный json в формате utf-8: {json_tamplate}"),
-            ]
-        )
+        # chat template
+        self.chat_context = ChatPromptTemplate.from_messages( 
+            [ SystemMessagePromptTemplate.from_template(_profiling_template_text) ] )
         
-        # answer parser
-        self.parser = StrOutputParser()
+        # question classificator template
+        self.qc_template = PromptTemplate.from_template(_question_classifictor_text)
+
+        # qa template
+        self.qa_template=  PromptTemplate.from_template(_qa_answer_text)
+        self.qa_ext_template = PromptTemplate.from_template(_qa_extension_text)
+
+        # extraction template
+        self.extraction_template = ChatPromptTemplate.from_messages(_extraction_template_chat)
     
     def handle_user_greeting(self) -> str:
         self.messages.append( AIMessage(content=(_greeting_text)) )
@@ -93,14 +168,54 @@ class TravelAgent:
         self.messages.append(HumanMessage(content=(user_message)))
 
         # form the context
-        chat_context = ChatPromptTemplate.from_messages( [ self.system_context ] )
-        chat_context.extend(self.messages[-10:])
+        self.chat_context.extend(self.messages[-10:])
+
+        # load context
+        doc = QAfile()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=50)
+        splits = text_splitter.split_documents(doc)
+        vectorstore = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings())
+
+        # Retrieve and generate using the relevant snippets of the blog.
+        retriever = vectorstore.as_retriever()
+
+        def format_docs(docs):
+            return "\n\n".join(doc.page_content for doc in docs)
 
         # make a chain
-        answer_chain = chat_context | self.model | self.parser
-
+        neg_chain = self.chat_context | self.negotiator | StrOutputParser()
+        qc_chain = self.qc_template | self.qc_llm | StrOutputParser()
+        qa_answer_chain = self.qa_template | self.qa_llm | StrOutputParser()
+        qa_ext_chain = self.qa_ext_template | self.qa_llm | StrOutputParser()
+            
+        qa_chain = \
+            {
+                "context": itemgetter("message") | retriever | format_docs, 
+                "question": itemgetter("message"),
+                "negotiator_answer": itemgetter("negotiator_answer")
+            } | ({
+                "qa_answer": qa_answer_chain, 
+                "negotiator_answer": itemgetter("negotiator_answer")
+            } | qa_ext_chain)        
+        
+        full_chain = \
+        {
+            "negotiator_answer": neg_chain, 
+            "is_there_question": qc_chain, 
+            "message": itemgetter("message")     
+        } | RunnableBranch (
+                (lambda x: "yes" in x["is_there_question"].lower(), qa_chain),
+                (lambda x: "no" in x["is_there_question"].lower(), lambda x: x["negotiator_answer"]),
+                lambda x: x["negotiator_answer"],
+        )
+        
         # wait the answer
-        answer = await answer_chain.ainvoke({"propertis": self.profile.get_properties()})
+        answer = await full_chain.ainvoke(
+            {
+                "propertis": self.profile.get_properties(),
+                "message": user_message
+            }
+        )
 
         # store the answer
         self.messages.append(AIMessage(content=answer))
@@ -110,13 +225,13 @@ class TravelAgent:
         return answer
 
     async def _data_extraction(self, question, answer):
-        extrraction_chain = self.extraction_template | self.extr_model | self.parser
+        extrraction_chain = self.extraction_template | self.extractor | StrOutputParser()
 
         extracted = await extrraction_chain.ainvoke(
             {
                 "question": question,
                 "answer": answer,
-                "json_tamplate": json.dumps(self.profile.data)
+                "json_template": json.dumps(self.profile.data)
             }
         )
         self.profile.update(json.loads(extracted))
