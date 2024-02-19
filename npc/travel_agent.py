@@ -140,7 +140,7 @@ class TravelAgent:
         )
 
         self.qa_ext_llm = ChatOpenAI(
-            model="gpt-3.5-turbo",
+            model="gpt-4-0125-preview",
             api_key=openai_token,
             temperature=0.5
         )
@@ -265,6 +265,3 @@ class TravelAgent:
         )
         self.profile.update(json.loads(extracted))
         print(extracted)
-
-
-
