@@ -2,19 +2,18 @@ from __future__ import annotations
 import asyncio
 import json
 from operator import itemgetter
+
 # langchain powered
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, AIMessagePromptTemplate
 
 # langchain rag segment
-from langchain_core.runnables import RunnableParallel, RunnableBranch, RunnablePassthrough
+from langchain_core.runnables import RunnableBranch
 from langchain_community.vectorstores import Chroma
-from langchain import hub
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_core.runnables import RunnablePassthrough
 from langchain.globals import set_verbose
 from langchain.globals import set_debug
 
@@ -32,23 +31,24 @@ from internal.documentation import QAfile
 openai_token = read_api_key("OPENAI_API_KEY")
 
 _greeting_text = """
-<данный телегремм-бот в демо режиме. Могут появляться ошибки>
+<данный телеграмм-бот в демо режиме. Могут появляться ошибки>
 
 Привет! Я помогу вам организовать ваше путешествие.
-Давайте начнем с вашего возраста. Сколько вам лет?
+Как мне обращатся к Вам?
 """ 
 
 
 _profiling_template_text = """
-Ты онлайн турестический агент.
+Ты онлайн туристический агент.
 Тебе необходимо узнать у клиента: {propertis}.
-Задавай вопросы пока не узнаешь ответы на все вопросы
+Задавай вопросы пока не узнаешь ответы на все вопросы.
+Не пытайся отвечать на вопросы
 """ # ...... 
     # + last N messages in chat
 
 
 _question_classifictor_text = """
-Учитывая сообщение пользователя ниже, классифицируй имеется ли в сообщении вопрос.
+Учитывая сообщение пользователя ниже, классифицируй иметься ли в сообщении вопрос.
 Не отвечайте более чем одним словом.
 Отвечай только `yes`, `no`
 
@@ -60,7 +60,7 @@ Classification:"""
 
 
 _qa_answer_text = """
-Ты помощник в вопросах-ответах. Сначала используй следующие фрагменты полученного контекста, чтобы ответить на вопрос.
+Сначала используй следующие фрагменты полученного контекста, чтобы ответить на вопрос.
 Если не знаешь ответ, просто скажи, что не знаешь. Используй максимум три предложения и будь краткими.
 
 Вопрос: {question}
@@ -81,13 +81,17 @@ Q&A ответ: {qa_answer}
 _extraction_template_chat = [
     SystemMessage(content=(
         "Ты анализатор текста. Ты аналезируешь диалог AI и пользователя. "
-        "Тебе нужно заполнить json соответсвующей информацией ответа Клиента")),
+        "Тебе нужно заполнить json соответсвующей информацией ответа Клиента")
+    ),
+    AIMessagePromptTemplate.from_template(
+        "AI задал вопрос: {question}"
+    ),
     HumanMessagePromptTemplate.from_template(
-        "AI задал вопрос: {question}"),
+        "Клиент дал ответ: {answer}"
+    ),
     HumanMessagePromptTemplate.from_template(
-        "Клиент дал ответ: {answer}"),
-    HumanMessagePromptTemplate.from_template(
-        "Заполни данный json в формате utf-8: {json_template}"),
+        "Заполни данный json в формате utf-8: {json_template}"
+    ),
 ]
 
 
@@ -135,6 +139,12 @@ class TravelAgent:
             api_key=openai_token
         )
 
+        self.qa_ext_llm = ChatOpenAI(
+            model="gpt-3.5-turbo",
+            api_key=openai_token,
+            temperature=0.5
+        )
+
         # llm to extract usefull information for profile 
         self.extractor = ChatOpenAI(
             model="gpt-3.5-turbo",
@@ -150,7 +160,7 @@ class TravelAgent:
         self.qc_template = PromptTemplate.from_template(_question_classifictor_text)
 
         # qa template
-        self.qa_template=  PromptTemplate.from_template(_qa_answer_text)
+        self.qa_template =  PromptTemplate.from_template(_qa_answer_text)
         self.qa_ext_template = PromptTemplate.from_template(_qa_extension_text)
 
         # extraction template
@@ -182,31 +192,50 @@ class TravelAgent:
         def format_docs(docs):
             return "\n\n".join(doc.page_content for doc in docs)
 
-        # make a chain
-        neg_chain = self.chat_context | self.negotiator | StrOutputParser()
-        qc_chain = self.qc_template | self.qc_llm | StrOutputParser()
-        qa_answer_chain = self.qa_template | self.qa_llm | StrOutputParser()
-        qa_ext_chain = self.qa_ext_template | self.qa_llm | StrOutputParser()
-            
-        qa_chain = \
-            {
-                "context": itemgetter("message") | retriever | format_docs, 
-                "question": itemgetter("message"),
-                "negotiator_answer": itemgetter("negotiator_answer")
-            } | ({
-                "qa_answer": qa_answer_chain, 
-                "negotiator_answer": itemgetter("negotiator_answer")
-            } | qa_ext_chain)        
+        # message --> neg_chain __
+        #                         \
+        #                           > --> if(qc_chain==yes) --> qa_chain --> qa_ext_chain --> out
+        #                          /      if(qc_chain==no)  --> out 
+        # message --> qc_chain  __/
         
-        full_chain = \
-        {
+        
+        # make a chains
+        neg_chain = self.chat_context | self.negotiator | StrOutputParser()                                                          
+        qc_chain = self.qc_template | self.qc_llm | StrOutputParser()       
+        qa_answer_chain = self.qa_template | self.qa_llm | StrOutputParser()
+        qa_ext_chain = self.qa_ext_template | self.qa_ext_llm | StrOutputParser()
+        
+        # 1. run parallel negotiator and question classification
+        first_parallel_chain = {
             "negotiator_answer": neg_chain, 
             "is_there_question": qc_chain, 
-            "message": itemgetter("message")     
-        } | RunnableBranch (
-                (lambda x: "yes" in x["is_there_question"].lower(), qa_chain),
-                (lambda x: "no" in x["is_there_question"].lower(), lambda x: x["negotiator_answer"]),
-                lambda x: x["negotiator_answer"],
+            "message": itemgetter("message")   
+        }
+        
+        # 2. if qc: "yes" -> read context 
+        qa_passthrough_chain = {
+            "context": itemgetter("message") | retriever | format_docs, 
+            "question": itemgetter("message"),
+            "negotiator_answer": itemgetter("negotiator_answer")
+        } 
+        
+        # 3. if qc: "yes" -> read context -> add q&a answer to negotiator answer -> full answer
+        qa_ext_passthrough_chain = {
+            "qa_answer": qa_answer_chain, 
+            "negotiator_answer": itemgetter("negotiator_answer")
+        } 
+        
+        full_chain = first_parallel_chain | RunnableBranch (
+            # if message have a qestion
+            (lambda x: "yes" in x["is_there_question"].lower(), 
+                qa_passthrough_chain | (qa_ext_passthrough_chain | qa_ext_chain) ),
+            
+            # if message not have a qestion
+            (lambda x: "no" in x["is_there_question"].lower(), 
+                lambda x: x["negotiator_answer"]),
+
+            # default
+            lambda x: x["negotiator_answer"]
         )
         
         # wait the answer
