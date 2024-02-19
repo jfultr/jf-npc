@@ -170,16 +170,7 @@ class TravelAgent:
         self.messages.append( AIMessage(content=(_greeting_text)) )
         return greeting
 
-    async def handle_user_message(self, user_message) -> str:
-        # remember prev ai message
-        prev_ai_message = self.messages[-1]
-
-        # add message to local
-        self.messages.append(HumanMessage(content=(user_message)))
-
-        # form the context
-        self.chat_context.extend(self.messages[-10:])
-
+    async def _chain(self, message):
         # load context
         doc = QAfile()
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=50)
@@ -197,7 +188,6 @@ class TravelAgent:
         #                           > --> if(qc_chain==yes) --> qa_chain --> qa_ext_chain --> out
         #                          /      if(qc_chain==no)  --> out 
         # message --> qc_chain  __/
-        
         
         # make a chains
         neg_chain = self.chat_context | self.negotiator | StrOutputParser()                                                          
@@ -239,12 +229,25 @@ class TravelAgent:
         )
         
         # wait the answer
-        answer = await full_chain.ainvoke(
+        return await full_chain.ainvoke(
             {
                 "propertis": self.profile.get_properties(),
-                "message": user_message
+                "message": message
             }
         )
+
+    async def handle_user_message(self, user_message) -> str:
+        # remember prev ai message
+        prev_ai_message = self.messages[-1]
+
+        # add message to local
+        self.messages.append(HumanMessage(content=(user_message)))
+
+        # form the context
+        self.chat_context.extend(self.messages[-10:])
+
+        # perform a chain
+        answer = await self._chain(user_message)
 
         # store the answer
         self.messages.append(AIMessage(content=answer))
