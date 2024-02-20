@@ -41,8 +41,9 @@ _greeting_text = """
 _profiling_template_text = """
 Ты онлайн туристический агент.
 Тебе необходимо узнать у клиента: {propertis}.
-Задавай вопросы пока не узнаешь ответы на все вопросы.
-Не пытайся отвечать на вопросы
+Данные, которые уже есть: {data}.
+Придерживайся правила описанного ниже.
+Привило: {rule}
 """ # ...... 
     # + last N messages in chat
 
@@ -232,6 +233,8 @@ class TravelAgent:
         return await full_chain.ainvoke(
             {
                 "propertis": self.profile.get_properties(),
+                "data": self.profile.get_state_data(),
+                "rule": self.profile.get_rule(),
                 "message": message
             }
         )
