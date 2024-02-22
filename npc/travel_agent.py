@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, AIMessagePromptTemplate
+from langchain.prompts import SystemMessagePromptTemplate
 
 # langchain rag segment
 from langchain_core.runnables import RunnableBranch
@@ -79,21 +79,6 @@ Q&A ответ: {qa_answer}
 локоничный ответ:"""
 
 
-_extraction_template_chat = [
-    SystemMessage(content=(
-        "Ты анализатор текста. Ты аналезируешь диалог AI и пользователя. "
-        "Тебе нужно заполнить json соответсвующей информацией ответа Клиента")
-    ),
-    AIMessagePromptTemplate.from_template(
-        "AI задал вопрос: {question}"
-    ),
-    HumanMessagePromptTemplate.from_template(
-        "Клиент дал ответ: {answer}"
-    ),
-    HumanMessagePromptTemplate.from_template(
-        "Заполни данный json в формате utf-8: {json_template}"
-    ),
-]
 
 
 # bind the greeting text
@@ -145,13 +130,6 @@ class TravelAgent:
             api_key=openai_token,
             temperature=0.5
         )
-
-        # llm to extract usefull information for profile 
-        self.extractor = ChatOpenAI(
-            model="gpt-3.5-turbo",
-            api_key=openai_token,
-            temperature=0.1
-        )
         
         # chat template
         self.chat_context = ChatPromptTemplate.from_messages( 
@@ -164,8 +142,7 @@ class TravelAgent:
         self.qa_template =  PromptTemplate.from_template(_qa_answer_text)
         self.qa_ext_template = PromptTemplate.from_template(_qa_extension_text)
 
-        # extraction template
-        self.extraction_template = ChatPromptTemplate.from_messages(_extraction_template_chat)
+
     
     def handle_user_greeting(self) -> str:
         self.messages.append( AIMessage(content=(_greeting_text)) )
@@ -256,18 +233,5 @@ class TravelAgent:
         self.messages.append(AIMessage(content=answer))
         
         # start async data extraction
-        asyncio.create_task(self._data_extraction(prev_ai_message, user_message))
+        asyncio.create_task(self.profile.update(prev_ai_message, user_message))
         return answer
-
-    async def _data_extraction(self, question, answer):
-        extrraction_chain = self.extraction_template | self.extractor | StrOutputParser()
-
-        extracted = await extrraction_chain.ainvoke(
-            {
-                "question": question,
-                "answer": answer,
-                "json_template": json.dumps(self.profile.data)
-            }
-        )
-        self.profile.update(json.loads(extracted))
-        print(extracted)
