@@ -17,9 +17,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.globals import set_verbose
 from langchain.globals import set_debug
 
-# cohere powered
-import cohere  
-from cohere.responses.classify import Example
+
 
 set_debug(True)
 set_verbose(False)
@@ -31,6 +29,8 @@ from package.common import read_api_key
 from internal.messagelist import MessageList
 from internal.profile import Profile
 from internal.documentation import QAfile
+from internal.qc import get_question_classificator
+
 
 openai_token = read_api_key("OPENAI_API_KEY")
 
@@ -52,18 +52,6 @@ _profiling_template_text = """
     # + last N messages in chat
 
 
-_question_classifictor_text = """
-Учитывая сообщение пользователя ниже, классифицируй иметься ли в сообщении вопрос.
-Не отвечайте более чем одним словом.
-Отвечай только `yes`, `no`
-
-<message>
-{message}
-</message>
-
-Classification:"""
-
-
 _qa_answer_text = """
 Сначала используй следующие фрагменты полученного контекста, чтобы ответить на вопрос.
 Если не знаешь ответ, просто скажи, что не знаешь. Используй максимум три предложения и будь краткими.
@@ -81,27 +69,6 @@ _qa_extension_text = """
 Q&A ответ: {qa_answer}
 сообщение от ИИ бота: {negotiator_answer}
 локоничный ответ:"""
-
-
-
-qc_examples=[
-  Example("Что такое чартер?", "q&a reqest"),
-  Example("Горящий тур?", "q&a reqest"),
-  Example("Что такое Горящий тур?", "q&a reqest"),
-  Example("Какие документы нужны", "q&a reqest"),
-  Example("Как я могу оплатить", "q&a reqest"),
-  Example("Что входит в стоймость пакета?", "q&a reqest"),
-  Example("Туркод", "q&a reqest"),
-  Example("Цена поменялась", "q&a reqest"),
-
-  Example("Да, я хочу", "common"),
-  Example("Япония", "common"),
-  Example("думаю, полечу в Канаду", "common"),
-  Example("23", "common"),
-  Example("Фархат", "common"),
-  Example("Дубай. Через неделю", "common"),
-  Example("Хочу ограничется бюджетом в 1000$", "common"),
-]
 
 
 # bind the greeting text
@@ -135,23 +102,14 @@ class TravelAgent:
             api_key=openai_token
         )
 
-        # llm to classify is there a question in message
-        # self.qc_llm = ChatOpenAI(
-        #     model="gpt-3.5-turbo",
-        #     api_key=openai_token,
-        #     temperature=0
-        # )
+        # llm to classify is there a question in message    
+        self._qc = get_question_classificator()
 
-        self.coclient = cohere.Client(
-            read_api_key("COHERE_API_KEY")
-        )
-
-        # llm to classify is there a question in message
+        # qa section
         self.qa_llm = ChatOpenAI(
             model="gpt-3.5-turbo",
             api_key=openai_token
         )
-
 
         self.qa_ext_llm = ChatOpenAI(
             model="gpt-4-0125-preview",
@@ -163,9 +121,6 @@ class TravelAgent:
         self.chat_context = ChatPromptTemplate.from_messages( 
             [ SystemMessagePromptTemplate.from_template(_profiling_template_text) ] )
         
-        # question classificator template
-        self.qc_template = PromptTemplate.from_template(_question_classifictor_text)
-
         # qa template
         self.qa_template =  PromptTemplate.from_template(_qa_answer_text)
         self.qa_ext_template = PromptTemplate.from_template(_qa_extension_text)
@@ -195,21 +150,7 @@ class TravelAgent:
         #                          /      if(qc_chain==no)  --> out 
         # message --> qc_chain  __/
         
-        # openai qc implementation
-        # qc_chain = self.qc_template | self.qc_llm | StrOutputParser()   
 
-        # cohere qc inmplementation
-        @chain
-        def qc_chain(text):
-            response = self.coclient.classify(  
-                model='embed-multilingual-v2.0',  
-                inputs=[text["message"]],  
-                examples=qc_examples)
-            print(response.classifications)
-            if  response.classifications[0].prediction == "q&a reqest":
-                return "yes"
-            else:
-                return "no"
 
         # make a chains
         neg_chain = self.chat_context | self.negotiator | StrOutputParser()    
@@ -219,7 +160,7 @@ class TravelAgent:
         # 1. run parallel negotiator and question classification
         first_parallel_chain = {
             "negotiator_answer": neg_chain, 
-            "is_there_question": qc_chain, 
+            "is_there_question": self._qc.get_chain(),
             "message": itemgetter("message")   
         }
         
