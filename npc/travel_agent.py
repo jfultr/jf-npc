@@ -11,14 +11,18 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain.prompts import SystemMessagePromptTemplate
 
 # langchain rag segment
-from langchain_core.runnables import RunnableBranch
+from langchain_core.runnables import RunnableBranch, chain
 from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.globals import set_verbose
 from langchain.globals import set_debug
 
+# cohere powered
+import cohere  
+from cohere.responses.classify import Example
+
 set_debug(True)
-set_verbose(True)
+set_verbose(False)
 
 # utils
 from package.common import read_api_key
@@ -80,6 +84,25 @@ Q&A ответ: {qa_answer}
 
 
 
+qc_examples=[
+  Example("Что такое чартер?", "q&a reqest"),
+  Example("Горящий тур?", "q&a reqest"),
+  Example("Что такое Горящий тур?", "q&a reqest"),
+  Example("Какие документы нужны", "q&a reqest"),
+  Example("Как я могу оплатить", "q&a reqest"),
+  Example("Что входит в стоймость пакета?", "q&a reqest"),
+  Example("Туркод", "q&a reqest"),
+  Example("Цена поменялась", "q&a reqest"),
+
+  Example("Да, я хочу", "common"),
+  Example("Япония", "common"),
+  Example("думаю, полечу в Канаду", "common"),
+  Example("23", "common"),
+  Example("Фархат", "common"),
+  Example("Дубай. Через неделю", "common"),
+  Example("Хочу ограничется бюджетом в 1000$", "common"),
+]
+
 
 # bind the greeting text
 greeting: str = _greeting_text
@@ -113,10 +136,14 @@ class TravelAgent:
         )
 
         # llm to classify is there a question in message
-        self.qc_llm = ChatOpenAI(
-            model="gpt-3.5-turbo",
-            api_key=openai_token,
-            temperature=0
+        # self.qc_llm = ChatOpenAI(
+        #     model="gpt-3.5-turbo",
+        #     api_key=openai_token,
+        #     temperature=0
+        # )
+
+        self.coclient = cohere.Client(
+            read_api_key("COHERE_API_KEY")
         )
 
         # llm to classify is there a question in message
@@ -124,6 +151,7 @@ class TravelAgent:
             model="gpt-3.5-turbo",
             api_key=openai_token
         )
+
 
         self.qa_ext_llm = ChatOpenAI(
             model="gpt-4-0125-preview",
@@ -167,9 +195,24 @@ class TravelAgent:
         #                          /      if(qc_chain==no)  --> out 
         # message --> qc_chain  __/
         
+        # openai qc implementation
+        # qc_chain = self.qc_template | self.qc_llm | StrOutputParser()   
+
+        # cohere qc inmplementation
+        @chain
+        def qc_chain(text):
+            response = self.coclient.classify(  
+                model='embed-multilingual-v2.0',  
+                inputs=[text["message"]],  
+                examples=qc_examples)
+            print(response.classifications)
+            if  response.classifications[0].prediction == "q&a reqest":
+                return "yes"
+            else:
+                return "no"
+
         # make a chains
-        neg_chain = self.chat_context | self.negotiator | StrOutputParser()                                                          
-        qc_chain = self.qc_template | self.qc_llm | StrOutputParser()       
+        neg_chain = self.chat_context | self.negotiator | StrOutputParser()    
         qa_answer_chain = self.qa_template | self.qa_llm | StrOutputParser()
         qa_ext_chain = self.qa_ext_template | self.qa_ext_llm | StrOutputParser()
         

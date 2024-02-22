@@ -19,6 +19,7 @@ langchainhub = "^0.1.14"
 chromadb = "^0.4.22"
 bs4 = "^0.0.2"
 docx2txt = "^0.8"
+cohere = "^4.48"
 
 
 [build-system]
