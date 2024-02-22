@@ -76,6 +76,9 @@ qc_examples=[
     Example("Фархат", "common"),
     Example("Дубай. Через неделю", "common"),
     Example("Хочу ограничется бюджетом в 1000$", "common"),
+    Example("Как тебя зовут?", "common"),
+    Example("Как дела?", "common")
+
 ]
 
 
