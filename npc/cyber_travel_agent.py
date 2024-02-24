@@ -133,8 +133,8 @@ class CyberTravelAgent(NPC):
         raise NotImplemented
 
     async def a_talk(self, user_message) -> str:
-        # remember prev ai message
-        prev_ai_message = self.messages[-1]
+        # start async data extraction
+        asyncio.create_task(self.profile.update(self.messages[-1], user_message))
 
         # add message to local
         self.messages.append(HumanMessage(content=(user_message)))
@@ -143,19 +143,17 @@ class CyberTravelAgent(NPC):
         if it_qa_question(user_message, cohere_client=self.cohere_client):
             print("cyber-travel-agent: q&a branch triggered")
             qa_answer = await self.qa_assistent.answer(user_message)
-            answer = await self._chain(user_message, qa_answer=qa_answer)
+            answer = await self._chain(qa_answer=qa_answer)
         else:
             # perform a negetiation chain
-            answer = await self._chain(user_message)
+            answer = await self._chain()
 
         # store the answer
         self.messages.append(AIMessage(content=answer))
         
-        # start async data extraction
-        asyncio.create_task(self.profile.update(prev_ai_message, user_message))
         return answer
 
-    async def _chain(self, message, qa_answer=None):
+    async def _chain(self, qa_answer=None):
         # form the context
         #    chat_context ->> system message
         self.chat_context.extend(self.messages[-5:])
