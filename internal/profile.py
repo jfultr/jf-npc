@@ -109,7 +109,6 @@ class Profile:
             self.transition_to(state_or_none)
 
         self._update(json.loads(patch))
-        print(patch)
 
     def _update(self, patch: dict):
         self._data.update(patch)

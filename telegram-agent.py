@@ -5,7 +5,7 @@ from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHan
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
 
-from npc.travel_agent import get_travel_agent
+from internal.adapter import get_travel_agent
 from package.common import read_api_key
 from package.database import is_chat_stored
 
@@ -14,7 +14,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_chat_stored(str(update.effective_chat.id)):
         greeting = get_travel_agent(
             update.effective_chat.id,
-            update.effective_user.id).handle_user_greeting()
+            update.effective_user.id).handle_start()
         await context.bot.send_message(chat_id=update.effective_chat.id, 
             text=greeting)
     else:
@@ -26,7 +26,7 @@ async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         travel_agent = get_travel_agent(
             update.effective_chat.id,
             update.effective_user.id)
-        response = await travel_agent.handle_user_message(update.message.text)
+        response = await travel_agent.a_handle_message(update.message.text)
         await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
     else:
         return

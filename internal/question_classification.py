@@ -16,6 +16,20 @@ if _current_implementation == "OpenAi":
 from package.common import read_api_key
 
 
+def it_qa_question(message: str, cohere_client: cohere.Client = None, openai_client: ChatOpenAI = None) -> bool:
+    if cohere_client is not None:
+        response = cohere_client.classify(  
+                model='embed-multilingual-v2.0',  
+                inputs=[message],  
+                examples=qc_examples)
+
+        return response.classifications[0].predictions[0] == "q&a reqest"
+
+    if openai_client is not None:
+        qc_template = PromptTemplate.from_template(_question_classifictor_text)
+        return (qc_template | openai_client | StrOutputParser()).invoke({"message": message})
+
+
 def get_question_classificator() -> QC:
     if _current_implementation == "Cohere":
         return QCCohere(read_api_key("COHERE_API_KEY"))

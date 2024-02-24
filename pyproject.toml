@@ -20,6 +20,7 @@ chromadb = "^0.4.22"
 bs4 = "^0.0.2"
 docx2txt = "^0.8"
 cohere = "^4.48"
+faiss-cpu = "^1.7.4"
 
 
 [build-system]
