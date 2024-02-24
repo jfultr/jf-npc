@@ -20,7 +20,7 @@ from langchain.globals import set_debug
 import cohere  
 
 
-set_debug(True)
+set_debug(False)
 set_verbose(False)
 
 # utils

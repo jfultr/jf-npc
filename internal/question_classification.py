@@ -23,7 +23,13 @@ def it_qa_question(message: str, cohere_client: cohere.Client = None, openai_cli
                 inputs=[message],  
                 examples=qc_examples)
 
-        return response.classifications[0].predictions[0] == "q&a reqest"
+        print("question-classification: type -> " + response.classifications[0].predictions[0],
+              " conf -> " + str(response.classifications[0].confidences[0]))
+        if response.classifications[0].predictions[0] == "q&a reqest" and \
+            response.classifications[0].confidences[0] > 0.7:
+            return True
+        else:
+            return False 
 
     if openai_client is not None:
         qc_template = PromptTemplate.from_template(_question_classifictor_text)
@@ -92,7 +98,6 @@ qc_examples=[
     Example("Хочу ограничется бюджетом в 1000$", "common"),
     Example("Как тебя зовут?", "common"),
     Example("Как дела?", "common")
-
 ]
 
 
