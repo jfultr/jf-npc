@@ -110,7 +110,7 @@ class CyberTravelAgent(NPC):
         self.profile = profile
 
         # llm to negotiate with client
-        self.negotiator = ChatOpenAI(model="gpt-4-0125-preview", api_key=openai_token)
+        self.negotiator = ChatOpenAI(model="gpt-3.5-turbo-0125", api_key=openai_token)
 
         # llm to classify is there a question in message    
         self.cohere_client = cohere.Client(read_api_key("COHERE_API_KEY"))
