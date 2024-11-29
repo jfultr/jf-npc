@@ -4,9 +4,10 @@ version = "0.1.0"
 description = ""
 authors = ["jfultr"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.10,<3.14"
 python-telegram-bot = "^20.6"
 python-dotenv = "^1.0.0"
 openai = "^1.11.1"
@@ -20,7 +21,10 @@ chromadb = "^0.4.22"
 bs4 = "^0.0.2"
 docx2txt = "^0.8"
 cohere = "^4.48"
-faiss-cpu = "^1.7.4"
+faiss-cpu = "^1.9.0"
+pyqt6 = "^6.7.1"
+pyside6 = "^6.8.0.2"
+nodegraphqt = "^0.6.38"
 
 
 [build-system]
